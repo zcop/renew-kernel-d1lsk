@@ -392,3 +392,4 @@ obj-$(CONFIG_DEBUG_FS) += msm_cpr-debug.o
 endif
 
 obj-$(CONFIG_MACH_LGE) += lge/
+obj-$(CONFIG_MSM_SLEEPER) += msm-sleeper.o
