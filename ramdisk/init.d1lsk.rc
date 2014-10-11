@@ -1,0 +1,124 @@
+import /init.grand.rc
+import /init.lge.rc
+
+on init
+	start bootlogo
+# Create filesystems if necessary.
+    exec /sbin/setup_fs \
+        /dev/block/platform/msm_sdcc.1/by-name/userdata \
+        /dev/block/platform/msm_sdcc.1/by-name/cache \
+        /dev/block/platform/msm_sdcc.1/by-name/drm \
+        /dev/block/platform/msm_sdcc.1/by-name/mpt \
+        /dev/block/platform/msm_sdcc.1/by-name/sns \
+        /dev/block/platform/msm_sdcc.1/by-name/ve \
+        no_reboot
+
+on boot-pause
+    exec system/bin/battery_charging
+
+
+on post-fs-data
+    setprop ro.crypto.keyfile.userdata /dev/block/platform/msm_sdcc.1/by-name/encrypt
+on boot
+    chmod 0660 /dev/ttyGS0
+    chown system system /dev/ttyGS0
+# brightness properties
+	setprop ro.lge.lcd_default_brightness	156
+	setprop ro.lge.lcd_auto_brightness_mode	false
+
+# LGE_CHANGE_S, 20120131, hikim@lge.com, Re-define TCP buffer size for SKT LTE network. Overwrite init.rc property
+#   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+    setprop net.tcp.buffersize.lte     4094,281250,1220608,4096,140625,1220608
+# LGE_CHANGE_E, 20120131, hikim@lge.com, Re-define TCP buffer size for SKT LTE
+
+# LGE_CHANGE_S, [LGE_DATA][WCDMA_Window_Size], gilchan.park@lge.com, 2012-03-05
+# Re-define TCP buffer size for SKT WCDMA network. Overwrite init.rc property
+# ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+	setprop net.tcp.buffersize.umts    4094,87380,1220608,4096,16384,1220608
+	setprop net.tcp.buffersize.hspa    4094,87380,1220608,4096,16384,1220608
+	setprop net.tcp.buffersize.hsupa   4094,87380,1220608,4096,16384,1220608
+	setprop net.tcp.buffersize.hsdpa   4094,87380,1220608,4096,16384,1220608
+# LGE_CHANGE_E, [LGE_DATA][WCDMA_Window_Size], gilchan.park@lge.com, 2012-03-05
+
+#20120306 iwlan daeyoung.moon@lge.com [START] -----------------------
+    chmod 0755 /system/bin/iwland
+#20120306 iwlan daeyoung.moon@lge.com [END] -----------------------
+    
+#20120213 PM service daeyoung.moon@lge.com [START] -----------------------
+    mkdir /data/playready 0777 system system
+    chown system system /data/playready
+    chmod 0777 /data/playready
+
+    mkdir /data/pmsc 0777 system system
+    chown system system /data/pmsc
+    chmod 0777/data/pmsc
+
+    copy /system/skt/pmservice_cert/bgroupcert.dat /data/pmsc/bgroupcert.dat
+    copy /system/skt/pmservice_cert/devcerttemplate.dat /data/pmsc/devcerttemplate.dat
+    copy /system/skt/pmservice_cert/priv.dat /data/pmsc/priv.dat
+    copy /system/skt/pmservice_cert/zgpriv.dat /data/pmsc/zgpriv.dat
+
+    chown system system /data/pmsc/bgroupcert.dat
+    chown system system /data/pmsc/devcerttemplate.dat
+    chown system system /data/pmsc/priv.dat
+    chown system system /data/pmsc/zgpriv.dat
+
+    chmod 0444 /data/pmsc/bgroupcert.dat
+    chmod 0444 /data/pmsc/devcerttemplate.dat
+    chmod 0444 /data/pmsc/priv.dat
+    chmod 0444 /data/pmsc/zgpriv.dat
+#20120213  PM service  daeyoung.moon@lge.com [END] -----------------------
+
+# NFC Feature
+    chmod 0600 /dev/pn544
+    chown nfc nfc /dev/pn544
+
+
+# +s LGBT_CNDTL_FUNCTION_DISABLE_MAP : jg.kwon@lge.com 2012.04.14. Disable Bluetooth MAP service
+    setprop ro.qualcomm.bluetooth.map false
+# +e LGBT_CNDTL_FUNCTION_DISABLE_MAP
+
+# changsoon2.park@lge.com : snd_cards check! if there is no sound card, make phone crash
+    write /sys/module/snd_soc_wcd9310/parameters/snd_check 1
+
+on property:ro.build.type=user
+   write /sys/module/subsystem_restart/parameters/restart_level 3
+
+on post-fs
+    mkdir /data/ve 0755 radio radio
+    # LGE_UPDATE_START
+    wait /dev/block/platform/msm_sdcc.1/by-name/ve
+    exec /system/bin/e2fsck -p /dev/block/platform/msm_sdcc.1/by-name/ve
+    # LGE_UPDATE_END
+    mount ext4 /dev/block/platform/msm_sdcc.1/by-name/ve /data/ve nosuid nodev noatime errors=continue barrier=0 data=ordered
+    chown radio radio /data/ve
+    chmod 0755 /data/ve
+
+service broadcast /system/bin/libbroadcast_server
+    class main
+    user media
+    group system audio media graphics sdcard_rw
+#  onrestart restart media
+
+# Create filesystems if necessary.
+
+#20120306 iwlan daeyoung.moon@lge.com [START] -----------------------
+service iwland /system/bin/iwland -ddd
+    class main
+    user root
+    oneshot
+#20120306 iwlan daeyoung.moon@lge.com [END] -----------------------
+
+service bootlogo /sbin/bootlogo_skt
+	class main
+	user root
+	group root
+	disabled
+	oneshot
+
+#start GNSS/Sensor interface daemon
+service gsiff_daemon /system/bin/gsiff_daemon
+    class late_start
+    user system
+    group gps qcom_oncrpc net_raw
+

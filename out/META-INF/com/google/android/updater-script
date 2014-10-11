@@ -1,0 +1,16 @@
+package_extract_file("boot.img", "/tmp/boot.img");
+package_extract_dir("busybox", "/tmp");
+package_extract_dir("loki", "/tmp");
+set_perm(0, 0, 0777, "/tmp/busybox");
+set_perm(0, 0, 0777, "/tmp/loki_patch-linux-arm");
+set_perm(0, 0, 0777, "/tmp/loki_flash");
+run_program("/tmp/busybox", "dd", "if=/dev/block/platform/msm_sdcc.1/by-name/aboot", "of=/tmp/aboot.img");
+run_program("/tmp/loki_patch-linux-arm", "boot", "/tmp/aboot.img", "/tmp/boot.img", "/tmp/boot.lok");
+run_program("/tmp/loki_flash", "boot", "/tmp/boot.lok");
+run_program("/sbin/mount", "/system");
+package_extract_dir("system", "/system");
+set_perm(0, 0, 0644, "/system/lib/modules/prima/prima_wlan.ko");
+set_perm(0, 0, 0644, "/system/lib/modules/prima/cfg80211.ko");
+set_perm(0, 0, 0644, "/system/etc/firmware/wlan/prima/WCNSS_cfg.dat");
+unmount("/system");
+set_progress(1.000000);
