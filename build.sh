@@ -12,6 +12,8 @@ export TARGET_PRODUCT=d1lsk_SKT_KR
 export CROSS_COMPILE=$toolchaindir/bin/arm-eabi-
 
 build-kernel(){
+	[ -e arch/arm/boot/zImage ] && rm arch/arm/boot/zImage
+
 	make -j16
 
 	if [ -e .config.bak ]; then
