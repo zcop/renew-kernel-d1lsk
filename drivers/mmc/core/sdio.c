@@ -1057,7 +1057,7 @@ static int mmc_sdio_power_restore(struct mmc_host *host)
 	ret = mmc_sdio_init_card(host, host->ocr, host->card,
 				mmc_card_keep_power(host));
 	if (!ret && host->sdio_irqs)
-		mmc_signal_sdio_irq(host);
+		wake_up_process(host->sdio_irq_thread);
 
 out:
 	mmc_release_host(host);
