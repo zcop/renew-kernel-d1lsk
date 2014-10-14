@@ -2597,10 +2597,6 @@ bed:
 				    NULL, NULL, NULL);
 
 		/* Check if the we got some results */
-/*           
-                                   
-                                 
- */
 		if (!self->cachedaddr) {
 			err = -EAGAIN;		/* Didn't find any devices */
 			goto out;
