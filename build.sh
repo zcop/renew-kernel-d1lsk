@@ -22,6 +22,12 @@ build-kernel(){
 	fi
 
 	if [ -e arch/arm/boot/zImage ]; then
+		echo "$BOLD""$GREEN"Compressing ramdisk"$RESET"
+		[ -e initrd.lz4 ] && rm initrd.lz4
+		cd ramdisk
+		find . \( ! -regex '.*/\..*' \) | cpio -o -H newc -R root:root | lz4c -l -c1 stdin ../initrd.lz4
+		cd ..
+
 		echo "$BOLD""$GREEN"Making boot.img"$RESET"
 		./mkbootimg --kernel arch/arm/boot/zImage --ramdisk initrd.lz4 --base 0x80200000 --ramdisk_offset 0x02000000 --pagesize 2048 --cmdline "console=ttyHSL0,115200,n8 androidboot.hardware=d1lsk user_debug=31 msm_rtb.filter=0x3F ehci-hcd.park=3 lpj=67724" --output out/boot.img
 
@@ -30,12 +36,6 @@ build-kernel(){
 		dd if=drivers/staging/prima/wlan.ko of=out/system/lib/modules/prima/prima_wlan.ko
 		dd if=net/wireless/cfg80211.ko of=out/system/lib/modules/prima/cfg80211.ko
 		"$CROSS_COMPILE"strip --strip-unneeded out/system/lib/modules/prima/*.ko
-
-		echo "$BOLD""$GREEN"Compressing ramdisk"$RESET"
-		[ -e initrd.lz4 ] && rm initrd.lz4
-		cd ramdisk
-		find . \( ! -regex '.*/\..*' \) | cpio -o -H newc -R root:root | lz4c -l -c1 stdin ../initrd.lz4
-		cd ..
 
 		echo "$BOLD""$GREEN"Making flashable ZIP"$RESET"
 		cd out
