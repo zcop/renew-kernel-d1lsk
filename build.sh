@@ -25,7 +25,7 @@ build-kernel(){
 		echo "$BOLD""$GREEN"Compressing ramdisk"$RESET"
 		[ -e initrd.lz4 ] && rm initrd.lz4
 		cd ramdisk
-		find . \( ! -regex '.*/\..*' \) | cpio -o -H newc -R root:root | lz4c -l -c1 stdin ../initrd.lz4
+		find . \( ! -regex '.*/\..*' \) | cpio -o -H newc -R root:root | ../lz4c -l -c1 stdin ../initrd.lz4
 		cd ..
 
 		echo "$BOLD""$GREEN"Making boot.img"$RESET"
