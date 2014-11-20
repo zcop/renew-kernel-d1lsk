@@ -280,7 +280,7 @@ int mdp4_overlay_iommu_map_buf(int mem_id,
 		pipe->pipe_ndx, plane);
 	if (ion_map_iommu(display_iclient, *srcp_ihdl,
 		DISPLAY_READ_DOMAIN, GEN_POOL, SZ_4K, 0, start,
-		len, 0, ION_IOMMU_UNMAP_DELAYED)) {
+		len, 0, 0)) {
 		ion_free(display_iclient, *srcp_ihdl);
 		pr_err("ion_map_iommu() failed\n");
 		return -EINVAL;
@@ -3604,8 +3604,7 @@ int mdp4_overlay_play(struct fb_info *info, struct msmfb_overlay_data *req)
 		if (ctrl->panel_mode & MDP4_PANEL_DSI_CMD) {
 			/* cndx = 0 */
 			mdp4_dsi_cmd_pipe_queue(0, pipe);
-		}
-		if (ctrl->panel_mode & MDP4_PANEL_DSI_VIDEO) {
+		} else if (ctrl->panel_mode & MDP4_PANEL_DSI_VIDEO) {
 			/* cndx = 0 */
 			mdp4_dsi_video_pipe_queue(0, pipe);
 		} else if (ctrl->panel_mode & MDP4_PANEL_LCDC) {
@@ -3672,6 +3671,52 @@ end:
 	if (img->flags & MDP_MEMORY_ID_TYPE_FB)
 		fput_light(srcp0_file, ps0_need);
 	return ret;
+}
+
+int mdp4_overlay_commit(struct fb_info *info)
+{
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+	int mixer;
+
+	if (mfd == NULL)
+		return -ENODEV;
+
+	if (!mfd->panel_power_on) /* suspended */
+		return -EINVAL;
+
+	mixer = mfd->panel_info.pdest;	/* DISPLAY_1 or DISPLAY_2 */
+
+	if (mixer >= MDP4_MIXER_MAX)
+		return -EPERM;
+
+	mutex_lock(&mfd->dma->ov_mutex);
+
+	mdp4_overlay_mdp_perf_upd(mfd, 1);
+
+	msm_fb_wait_for_fence(mfd);
+
+	if (mixer == MDP4_MIXER0) {
+		if (ctrl->panel_mode & MDP4_PANEL_DSI_CMD) {
+			/* cndx = 0 */
+			mdp4_dsi_cmd_pipe_commit(0, 1);
+		} else if (ctrl->panel_mode & MDP4_PANEL_DSI_VIDEO) {
+			/* cndx = 0 */
+			mdp4_dsi_video_pipe_commit(0, 1);
+		} else if (ctrl->panel_mode & MDP4_PANEL_LCDC) {
+			/* cndx = 0 */
+			mdp4_lcdc_pipe_commit(0, 1);
+		}
+	} else if (mixer == MDP4_MIXER1) {
+		if (ctrl->panel_mode & MDP4_PANEL_DTV)
+			mdp4_dtv_pipe_commit(0, 1);
+	}
+	msm_fb_signal_timeline(mfd);
+
+	mdp4_overlay_mdp_perf_upd(mfd, 0);
+
+	mutex_unlock(&mfd->dma->ov_mutex);
+
+	return 0;
 }
 
 struct msm_iommu_ctx {
