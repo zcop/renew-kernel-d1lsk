@@ -3432,6 +3432,29 @@ static int msmfb_overlay_ioctl_writeback_terminate(struct fb_info *info)
 	return mdp4_writeback_terminate(info);
 }
 
+static int msmfb_overlay_ioctl_writeback_set_mirr_hint(struct fb_info *
+		info, void *argp)
+{
+	int ret = 0, hint;
+
+	if (!info) {
+		ret = -EINVAL;
+		goto error;
+	}
+
+	ret = copy_from_user(&hint, argp, sizeof(hint));
+	if (ret)
+		goto error;
+
+	ret = mdp4_writeback_set_mirroring_hint(info, hint);
+	if (ret)
+		goto error;
+error:
+	if (ret)
+		pr_err("%s: ioctl failed\n", __func__);
+	return ret;
+}
+
 #else
 static int msmfb_overlay_ioctl_writeback_init(struct fb_info *info)
 {
@@ -3733,92 +3756,20 @@ buf_sync_err_1:
 	return ret;
 }
 
-static int buf_fence_process(struct msm_fb_data_type *mfd,
-						struct mdp_buf_fence *buf_fence)
-{
-	int i, fence_cnt = 0, ret;
-	struct sync_fence *fence;
-
-	if ((buf_fence->acq_fen_fd_cnt == 0) ||
-		(buf_fence->acq_fen_fd_cnt > MDP_MAX_FENCE_FD) ||
-		(mfd->timeline == NULL))
-		return -EINVAL;
-
-	mutex_lock(&mfd->sync_mutex);
-	for (i = 0; i < buf_fence->acq_fen_fd_cnt; i++) {
-		fence = sync_fence_fdget(buf_fence->acq_fen_fd[i]);
-		if (fence == NULL) {
-			pr_info("%s: null fence! i=%d fd=%d\n", __func__, i,
-				buf_fence->acq_fen_fd[i]);
-			ret = -EINVAL;
-			break;
-		}
-		mfd->acq_fen[i] = fence;
-	}
-	fence_cnt = i;
-	if (ret)
-		goto buf_fence_err_1;
-	mfd->cur_rel_sync_pt = sw_sync_pt_create(mfd->timeline,
-			mfd->timeline_value + 2);
-	if (mfd->cur_rel_sync_pt == NULL) {
-		pr_err("%s: cannot create sync point", __func__);
-		ret = -ENOMEM;
-		goto buf_fence_err_1;
-	}
-	/* create fence */
-	mfd->cur_rel_fence = sync_fence_create("mdp-fence",
-			mfd->cur_rel_sync_pt);
-	if (mfd->cur_rel_fence == NULL) {
-		sync_pt_free(mfd->cur_rel_sync_pt);
-		mfd->cur_rel_sync_pt = NULL;
-		pr_err("%s: cannot create fence", __func__);
-		ret = -ENOMEM;
-		goto buf_fence_err_1;
-	}
-	/* create fd */
-	mfd->cur_rel_fen_fd = get_unused_fd_flags(0);
-	sync_fence_install(mfd->cur_rel_fence, mfd->cur_rel_fen_fd);
-	buf_fence->rel_fen_fd[0] = mfd->cur_rel_fen_fd;
-	/* Only one released fd for now, -1 indicates an end */
-	buf_fence->rel_fen_fd[1] = -1;
-	mfd->acq_fen_cnt = buf_fence->acq_fen_fd_cnt;
-	mutex_unlock(&mfd->sync_mutex);
-	return ret;
-buf_fence_err_1:
-	for (i = 0; i < fence_cnt; i++)
-		sync_fence_put(mfd->acq_fen[i]);
-	mfd->acq_fen_cnt = 0;
-	mutex_unlock(&mfd->sync_mutex);
-	return ret;
-}
 static int msmfb_display_commit(struct fb_info *info,
 						unsigned long *argp)
 {
 	int ret;
-	u32 copy_back = FALSE;
-	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct mdp_display_commit disp_commit;
-	struct mdp_buf_fence *buf_fence;
 	ret = copy_from_user(&disp_commit, argp,
 			sizeof(disp_commit));
 	if (ret) {
 		pr_err("%s:copy_from_user failed", __func__);
 		return ret;
 	}
-	buf_fence = &disp_commit.buf_fence;
-	if (buf_fence->acq_fen_fd_cnt > 0)
-		ret = buf_fence_process(mfd, buf_fence);
-	if ((!ret) && (buf_fence->rel_fen_fd[0] > 0))
-		copy_back = TRUE;
 
 	ret = msm_fb_pan_display_ex(info, &disp_commit);
 
-	if (copy_back) {
-		ret = copy_to_user(argp,
-			&disp_commit, sizeof(disp_commit));
-		if (ret)
-			pr_err("%s:copy_to_user failed", __func__);
-	}
 	return ret;
 }
 
@@ -3911,6 +3862,10 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		break;
 	case MSMFB_WRITEBACK_TERMINATE:
 		ret = msmfb_overlay_ioctl_writeback_terminate(info);
+		break;
+	case MSMFB_WRITEBACK_SET_MIRRORING_HINT:
+		ret = msmfb_overlay_ioctl_writeback_set_mirr_hint(
+				info, argp);
 		break;
 #endif
 	case MSMFB_VSYNC_CTRL:
@@ -4146,6 +4101,8 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 			return ret;
 
 		ret = msmfb_handle_pp_ioctl(mfd, &mdp_pp);
+		if (ret == 1)
+			ret = copy_to_user(argp, &mdp_pp, sizeof(mdp_pp));
 		break;
 	case MSMFB_METADATA_SET:
 		ret = copy_from_user(&mdp_metadata, argp, sizeof(mdp_metadata));

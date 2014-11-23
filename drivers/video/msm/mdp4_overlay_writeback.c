@@ -634,3 +634,23 @@ terminate_err:
 	mutex_unlock(&mfd->unregister_mutex);
 	return rc;
 }
+
+int mdp4_writeback_set_mirroring_hint(struct fb_info *info, int hint)
+{
+	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
+
+	if (mfd->panel.type != WRITEBACK_PANEL)
+		return -ENOTSUPP;
+
+	switch (hint) {
+	case MDP_WRITEBACK_MIRROR_ON:
+	case MDP_WRITEBACK_MIRROR_PAUSE:
+	case MDP_WRITEBACK_MIRROR_RESUME:
+	case MDP_WRITEBACK_MIRROR_OFF:
+		pr_info("wfd state switched to %d\n", hint);
+		switch_set_state(&mfd->writeback_sdev, hint);
+		return 0;
+	default:
+		return -EINVAL;
+	}
+}

@@ -78,6 +78,8 @@
 #define MSMFB_BUFFER_SYNC  _IOW(MSMFB_IOCTL_MAGIC, 162, struct mdp_buf_sync)
 #define MSMFB_DISPLAY_COMMIT      _IOW(MSMFB_IOCTL_MAGIC, 164, \
 						struct mdp_display_commit)
+#define MSMFB_WRITEBACK_SET_MIRRORING_HINT _IOW(MSMFB_IOCTL_MAGIC, 165, \
+						unsigned int)
 #define MSMFB_METADATA_GET _IOW(MSMFB_IOCTL_MAGIC, 166, struct msmfb_metadata)
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
@@ -518,13 +520,7 @@ struct mdp_buf_sync {
 	uint32_t acq_fen_fd_cnt;
 	int *acq_fen_fd;
 	int *rel_fen_fd;
-};
-
-struct mdp_buf_fence {
-	uint32_t flags;
-	uint32_t acq_fen_fd_cnt;
-	int acq_fen_fd[MDP_MAX_FENCE_FD];
-	int rel_fen_fd[MDP_MAX_FENCE_FD];
+	int *retire_fen_fd;
 };
 
 #define MDP_DISPLAY_COMMIT_OVERLAY 0x00000001
@@ -533,7 +529,6 @@ struct mdp_display_commit {
 	uint32_t flags;
 	uint32_t wait_for_finish;
 	struct fb_var_screeninfo var;
-	struct mdp_buf_fence buf_fence;
 };
 
 struct mdp_page_protection {
@@ -560,6 +555,13 @@ struct msmfb_mixer_info_req {
 enum {
 	DISPLAY_SUBSYSTEM_ID,
 	ROTATOR_SUBSYSTEM_ID,
+};
+
+enum {
+	MDP_WRITEBACK_MIRROR_OFF,
+	MDP_WRITEBACK_MIRROR_ON,
+	MDP_WRITEBACK_MIRROR_PAUSE,
+	MDP_WRITEBACK_MIRROR_RESUME,
 };
 
 #ifdef __KERNEL__
